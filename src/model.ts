@@ -15,7 +15,6 @@ export type Scene = {
   setKind(kind: Kind): void
 }
 
-const KINDS: Kind[] = ['dualsense', 'dualshock4', 'xbox']
 /** Models are in metres; the scene (camera, floor, shake) was laid out for a pad ~6 units wide. */
 const SCALE = 37.5
 /** How far a button sinks when pressed, in metres. */
@@ -102,7 +101,7 @@ function prepare(gltf: { scene: THREE.Group }): Model {
 
 export function createScene(canvas: HTMLCanvasElement): Scene {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5))
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.shadowMap.enabled = true
   const scene = new THREE.Scene()
@@ -122,7 +121,7 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
   const key = new THREE.DirectionalLight('#ffffff', 2.2)
   key.position.set(4, 9, 5)
   key.castShadow = true
-  key.shadow.mapSize.set(2048, 2048)
+  key.shadow.mapSize.set(1024, 1024)
   key.shadow.camera.left = key.shadow.camera.bottom = -6
   key.shadow.camera.right = key.shadow.camera.top = 6
   scene.add(key)
@@ -143,18 +142,24 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
   holder.position.y = -0.85
   pad.add(holder)
 
+  // Only the model on screen is loaded, the first time it's needed.
   const models = new Map<Kind, Model>()
+  const loading = new Set<Kind>()
   let kind: Kind = 'dualsense'
-  const show = () => models.forEach((m, k) => (m.root.visible = k === kind))
   const loader = new GLTFLoader()
-  for (const k of KINDS) {
+  const show = () => {
+    models.forEach((m, k) => (m.root.visible = k === kind))
+    if (models.has(kind) || loading.has(kind)) return
+    const k = kind
+    loading.add(k)
     loader.loadAsync(`/models/${k}.glb`).then((gltf) => {
       const m = prepare(gltf)
       models.set(k, m)
       holder.add(m.root)
       show()
-    }).catch((e) => console.error(`modelo ${k}`, e))
+    }).catch((e) => console.error(`modelo ${k}`, e)).finally(() => loading.delete(k))
   }
+  show()
 
   const resize = () => {
     const { clientWidth: w, clientHeight: h } = canvas
@@ -222,6 +227,8 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
 
   const loop = () => {
     requestAnimationFrame(loop)
+    // Nothing to draw when the controller page isn't showing (other tab, minimised window).
+    if (document.hidden || !canvas.getClientRects().length) return
     clock.update()
     const t = clock.getElapsed()
     const f = last

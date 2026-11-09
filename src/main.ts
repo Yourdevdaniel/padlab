@@ -6,6 +6,10 @@ import { mountAudio } from './audio'
 import { mountKeyboard } from './keyboard'
 import { mountMouse } from './mouse'
 import { BUTTONS, CHARGE, HAS, KIND_NAME, labelFor, type Frame, type Info, type Kind } from './pad'
+import { connectHid, hasWebHid, startWeb, webOutput, type WebOutput } from './web'
+
+/** Outside the app (plain browser preview) the controller is read by the page itself. */
+const inApp = '__TAURI_INTERNALS__' in window
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T
 
@@ -27,17 +31,17 @@ function send() {
   setTimeout(() => {
     queued = false
     const n = parseInt(out.color.slice(1), 16)
-    invoke('set_output', {
-      output: {
-        color: [(n >> 16) & 255, (n >> 8) & 255, n & 255],
-        players: out.players,
-        micLed: out.mic,
-        rumble: out.rumble,
-        triggerLeft: EFFECTS[out.effect.L].bytes,
-        triggerRight: EFFECTS[out.effect.R].bytes,
-        impulse: out.impulse,
-      },
-    }).catch(() => {})
+    const output: WebOutput = {
+      color: [(n >> 16) & 255, (n >> 8) & 255, n & 255],
+      players: out.players,
+      micLed: out.mic,
+      rumble: out.rumble,
+      triggerLeft: EFFECTS[out.effect.L].bytes,
+      triggerRight: EFFECTS[out.effect.R].bytes,
+      impulse: out.impulse,
+    }
+    if (inApp) invoke('set_output', { output }).catch(() => {})
+    else webOutput(output)
   }, 16)
 }
 
@@ -213,10 +217,21 @@ function showInfo(i: Info | null) {
   if (!was) send()
 }
 
-// Outside the app (plain browser preview) there's no Tauri: the controller page just stays empty.
-listen<Info | null>('pad-info', (e) => { if (!!e.payload !== !!info) showInfo(e.payload) }).catch(() => {})
-listen<Frame>('pad', (e) => { frame = e.payload }).catch(() => {})
-invoke<Info | null>('hello').then(showInfo).catch(() => {})
+if (inApp) {
+  listen<Info | null>('pad-info', (e) => { if (!!e.payload !== !!info) showInfo(e.payload) }).catch(() => {})
+  listen<Frame>('pad', (e) => { frame = e.payload }).catch(() => {})
+  invoke<Info | null>('hello').then(showInfo).catch(() => {})
+} else {
+  const handlers = { info: showInfo, frame: (f: Frame) => { frame = f } }
+  startWeb(handlers)
+  // WebHID only opens a device after the user picks it; Xbox pads show up on their own.
+  const p = document.createElement('p')
+  p.innerHTML = hasWebHid()
+    ? '<button class="connect">Conectar DualSense / DualShock 4</button><br><span class="muted">No navegador, o controle Xbox aparece ao apertar um botão.</span>'
+    : '<span class="muted">Este navegador não tem WebHID (use Chrome ou Edge). O controle Xbox aparece ao apertar um botão.</span>'
+  p.querySelector('button')?.addEventListener('click', () => connectHid(handlers).catch((e) => console.error('WebHID', e)))
+  $('#emptyCard').append(p)
+}
 
 const pulse = { L: 0, R: 0 }
 let sentImpulse = '0,0'
