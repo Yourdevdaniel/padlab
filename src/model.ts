@@ -6,13 +6,14 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
-import { BUTTONS, type Frame } from './pad'
+import { BUTTONS, type Frame, type Kind } from './pad'
 
 const TOP = 0.66
 
 export type Scene = {
   update(frame: Frame | null, opts: { color: string; players: number; mic: boolean; shake: number; follow: boolean }): void
   kick(amount: number): void
+  setKind(kind: Kind): void
 }
 
 function shell() {
@@ -46,7 +47,9 @@ function roundedPanel(w: number, d: number, r: number, h: number) {
   return g
 }
 
-function symbol(kind: string) {
+const XBOX: Record<string, [string, string]> = { Cross: ['A', '#5fd068'], Circle: ['B', '#ff5d5d'], Square: ['X', '#4c9dff'], Triangle: ['Y', '#ffcf3f'] }
+
+function symbol(kind: string, xbox = false) {
   const c = document.createElement('canvas')
   c.width = c.height = 128
   const g = c.getContext('2d')!
@@ -56,10 +59,17 @@ function symbol(kind: string) {
   g.lineWidth = 9
   g.lineCap = g.lineJoin = 'round'
   g.beginPath()
-  if (kind === 'Triangle') { g.moveTo(64, 34); g.lineTo(94, 88); g.lineTo(34, 88); g.closePath() }
-  if (kind === 'Circle') g.arc(64, 64, 30, 0, Math.PI * 2)
-  if (kind === 'Cross') { g.moveTo(38, 38); g.lineTo(90, 90); g.moveTo(90, 38); g.lineTo(38, 90) }
-  if (kind === 'Square') g.rect(38, 38, 52, 52)
+  if (xbox) {
+    const [letter, color] = XBOX[kind]
+    g.fillStyle = color
+    g.font = 'bold 72px "Segoe UI", sans-serif'
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.fillText(letter, 64, 68)
+  } else if (kind === 'Triangle') { g.moveTo(64, 34); g.lineTo(94, 88); g.lineTo(34, 88); g.closePath() }
+  else if (kind === 'Circle') g.arc(64, 64, 30, 0, Math.PI * 2)
+  else if (kind === 'Cross') { g.moveTo(38, 38); g.lineTo(90, 90); g.moveTo(90, 38); g.lineTo(38, 90) }
+  else if (kind === 'Square') g.rect(38, 38, 52, 52)
   g.stroke()
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
@@ -77,7 +87,7 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
 
   const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100)
-  camera.position.set(0, 7.2, 8.4)
+  camera.position.set(0, 9.5, 11.5)
   const controls = new OrbitControls(camera, canvas)
   controls.enableDamping = true
   controls.enablePan = false
@@ -127,7 +137,10 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
   const touchMat = new THREE.MeshPhysicalMaterial({ color: '#e6e9ef', roughness: 0.55, emissive: accent.clone(), emissiveIntensity: 0 })
   const touchpad = mesh(roundedPanel(2.1, 1.15, 0.12, 0.05), touchMat, 0, TOP + 0.03, -0.62)
   const lightMat = new THREE.MeshStandardMaterial({ color: '#000', emissive: accent.clone(), emissiveIntensity: 2.4 })
-  for (const x of [-1.12, 1.12]) mesh(new THREE.BoxGeometry(0.05, 0.05, 1.05), lightMat, x, TOP + 0.06, -0.62)
+  const lightSides = [-1.12, 1.12].map((x) => mesh(new THREE.BoxGeometry(0.05, 0.05, 1.05), lightMat, x, TOP + 0.06, -0.62))
+  // The DualShock 4 has its lightbar on the back edge instead.
+  const lightBack = mesh(new THREE.BoxGeometry(1.9, 0.08, 0.06), lightMat, 0, 0.42, -1.48)
+  lightBack.visible = false
   const fingers = [0, 1].map((i) => {
     const m = mesh(new THREE.SphereGeometry(0.07, 16, 12), new THREE.MeshBasicMaterial({ color: i ? '#ef476f' : '#ffd166' }), 0, TOP + 0.12, 0)
     m.visible = false
@@ -136,7 +149,7 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
 
   // Player LEDs under the touchpad.
   const ledMats = [0, 1, 2, 3, 4].map(() => new THREE.MeshStandardMaterial({ color: '#333', emissive: new THREE.Color('#ffffff'), emissiveIntensity: 0 }))
-  ledMats.forEach((m, i) => mesh(new THREE.BoxGeometry(0.06, 0.03, 0.025), m, (i - 2) * 0.13, TOP + 0.02, 0.0))
+  const ledMeshes = ledMats.map((m, i) => mesh(new THREE.BoxGeometry(0.06, 0.03, 0.025), m, (i - 2) * 0.13, TOP + 0.02, 0.0))
 
   const buttons = new Map<string, { obj: THREE.Object3D; mat: THREE.MeshPhysicalMaterial | THREE.MeshStandardMaterial; rest: number }>()
   const button = (name: string, obj: THREE.Mesh) => {
@@ -148,21 +161,28 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
 
   // Face buttons.
   const face: [string, number, number][] = [['Triangle', 0, -0.4], ['Cross', 0, 0.4], ['Square', -0.4, 0], ['Circle', 0.4, 0]]
+  const faceTops = new Map<string, THREE.MeshPhysicalMaterial>()
   for (const [name, dx, dz] of face) {
     const top = new THREE.MeshPhysicalMaterial({ map: symbol(name), roughness: 0.25, clearcoat: 1 })
+    faceTops.set(name, top)
     const b = mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.14, 40), [gloss.clone(), top, gloss.clone()] as unknown as THREE.Material, 2.1 + dx, TOP + 0.06, 0.02 + dz)
     button(name, b)
   }
   // D-pad.
   const dpad: [string, number, number, number][] = [['Up', 0, -0.33, 0], ['Down', 0, 0.33, 0], ['Left', -0.33, 0, 1], ['Right', 0.33, 0, 1]]
+  const dpadGroup = new THREE.Group()
+  dpadGroup.position.set(-2.1, 0, 0.02)
+  body.add(dpadGroup)
   for (const [name, dx, dz, turn] of dpad) {
-    const b = mesh(new THREE.BoxGeometry(0.24, 0.12, 0.34), gloss.clone(), -2.1 + dx, TOP + 0.05, 0.02 + dz)
+    const b = mesh(new THREE.BoxGeometry(0.24, 0.12, 0.34), gloss.clone(), dx, TOP + 0.05, dz, dpadGroup)
     b.rotation.y = (turn * Math.PI) / 2
     button(name, b)
   }
   // Small buttons.
-  button('Create', mesh(new THREE.CapsuleGeometry(0.05, 0.22, 4, 12), gloss.clone(), -1.38, TOP + 0.04, -1.0))
-  button('Options', mesh(new THREE.CapsuleGeometry(0.05, 0.22, 4, 12), gloss.clone(), 1.38, TOP + 0.04, -1.0))
+  const create = mesh(new THREE.CapsuleGeometry(0.05, 0.22, 4, 12), gloss.clone(), -1.38, TOP + 0.04, -1.0)
+  const options = mesh(new THREE.CapsuleGeometry(0.05, 0.22, 4, 12), gloss.clone(), 1.38, TOP + 0.04, -1.0)
+  button('Create', create)
+  button('Options', options)
   const ps = mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.08, 32), gloss.clone(), 0, TOP + 0.03, 0.62)
   button('PS', ps)
   const muteMat = new THREE.MeshStandardMaterial({ color: '#22252c', emissive: new THREE.Color('#ff7a1a'), emissiveIntensity: 0 })
@@ -172,16 +192,19 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
 
   // Sticks: a base ring, and a cap that tilts with the stick and sinks for L3/R3.
   const sticks = [-1.02, 1.02].map((x, i) => {
-    mesh(new THREE.TorusGeometry(0.36, 0.05, 12, 40).rotateX(Math.PI / 2), black, x, TOP + 0.02, 0.92)
+    const group = new THREE.Group()
+    group.position.set(x, 0, 0.92)
+    body.add(group)
+    mesh(new THREE.TorusGeometry(0.36, 0.05, 12, 40).rotateX(Math.PI / 2), black, 0, TOP + 0.02, 0, group)
     const pivot = new THREE.Group()
-    pivot.position.set(x, TOP, 0.92)
-    body.add(pivot)
+    pivot.position.set(0, TOP, 0)
+    group.add(pivot)
     mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.28, 20), black, 0, 0.14, 0, pivot)
     const capMat = new THREE.MeshPhysicalMaterial({ color: '#1b1d22', roughness: 0.75, emissive: accent.clone(), emissiveIntensity: 0 })
     const cap = mesh(new THREE.CylinderGeometry(0.32, 0.29, 0.1, 40), capMat, 0, 0.32, 0, pivot)
     mesh(new THREE.TorusGeometry(0.27, 0.025, 8, 40).rotateX(Math.PI / 2), black, 0, 0.37, 0, pivot)
     buttons.set(i ? 'R3' : 'L3', { obj: pivot, mat: capMat, rest: pivot.position.y })
-    return { pivot, cap }
+    return { group, pivot, cap }
   })
 
   // Shoulders: bumpers, and triggers on a hinge so they swing down as they're pulled.
@@ -266,7 +289,29 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
   }
   loop()
 
+  const place = (o: THREE.Object3D, x: number, z: number) => o.position.set(x, o.position.y, z)
   return {
+    setKind(kind) {
+      const xbox = kind === 'xbox'
+      // Xbox: left stick up top, d-pad below it; no touchpad, a glowing guide button instead.
+      place(sticks[0].group, xbox ? -2.1 : -1.02, xbox ? 0.02 : 0.92)
+      place(dpadGroup, xbox ? -1.02 : -2.1, xbox ? 0.92 : 0.02)
+      touchpad.visible = !xbox
+      lightSides.forEach((m) => (m.visible = kind === 'dualsense'))
+      lightBack.visible = kind === 'dualshock4'
+      ledMeshes.forEach((m) => (m.visible = kind === 'dualsense'))
+      mute.visible = kind === 'dualsense'
+      place(ps, 0, xbox ? -0.75 : 0.62)
+      ps.scale.setScalar(xbox ? 1.8 : 1)
+      place(create, xbox ? -0.5 : -1.38, xbox ? -0.2 : -1.0)
+      place(options, xbox ? 0.5 : 1.38, xbox ? -0.2 : -1.0)
+      for (const [name, mat] of faceTops) {
+        mat.map?.dispose()
+        mat.map = symbol(name, xbox)
+        mat.needsUpdate = true
+      }
+      white.color.set(xbox ? '#2a2d33' : '#eef0f4')
+    },
     update(frame, o) {
       last = frame
       opts = o
