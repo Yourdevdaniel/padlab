@@ -270,7 +270,9 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
     const shake = opts.shake + recoil
     extra.setFromEuler(new THREE.Euler(-recoil * 0.25, Math.sin(t * 0.4) * 0.04, 0))
     pad.quaternion.copy(tilt).multiply(extra)
-    pad.position.set((Math.random() - 0.5) * shake * 0.08, Math.sin(t * 1.1) * 0.05 + (Math.random() - 0.5) * shake * 0.05, recoil * 0.2)
+    // Vibration as a smooth fast wobble, not a new random spot every frame (that read as jitter).
+    const buzz = shake * 0.03
+    pad.position.set(Math.sin(t * 37) * buzz, Math.sin(t * 1.1) * 0.05 + Math.sin(t * 29 + 1) * buzz * 0.6, recoil * 0.2)
     controls.update()
     renderer.render(scene, camera)
   }
