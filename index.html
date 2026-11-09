@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PadLab</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <header class="top">
+    <div class="brand"><span class="logo"></span>PadLab</div>
+    <div class="status"><span class="dot" id="dot"></span><span id="conn">Procurando controle…</span></div>
+    <div class="chip" id="rate">— Hz</div>
+    <label class="chip toggle"><input type="checkbox" id="follow" checked /> Seguir movimento</label>
+  </header>
+
+  <aside class="side left">
+    <section class="card">
+      <h2>Bateria</h2>
+      <div class="battery">
+        <svg viewBox="0 0 120 120" class="ring"><circle cx="60" cy="60" r="50" class="track" /><circle cx="60" cy="60" r="50" class="fill" id="ring" /></svg>
+        <div class="battery-text"><div class="big" id="pct">—</div><div class="muted" id="charge">—</div></div>
+      </div>
+      <div class="chips" id="plugs"></div>
+      <p class="note">O controle informa a carga em passos de 10%. Ele não informa a saúde da bateria: nenhum app consegue ler isso.</p>
+    </section>
+
+    <section class="card">
+      <h2>Controle</h2>
+      <dl id="info"></dl>
+    </section>
+
+    <section class="card">
+      <h2>Analógicos</h2>
+      <div class="sticks"><canvas id="stickL" width="130" height="130"></canvas><canvas id="stickR" width="130" height="130"></canvas></div>
+      <dl id="stickStats"></dl>
+      <button id="resetSticks" class="ghost">Zerar teste</button>
+      <p class="note">Solte os analógicos: o desvio deve ficar abaixo de 5%. Gire encostando na borda para medir a circularidade.</p>
+    </section>
+  </aside>
+
+  <aside class="side right">
+    <section class="card">
+      <h2>Gatilhos adaptáveis</h2>
+      <div class="trigger" data-side="L">
+        <div class="trigger-head"><b>L2</b><span class="muted" data-hint></span></div>
+        <div class="effects" data-effects></div>
+        <canvas class="fx" data-fx></canvas>
+      </div>
+      <div class="trigger" data-side="R">
+        <div class="trigger-head"><b>R2</b><span class="muted" data-hint></span></div>
+        <div class="effects" data-effects></div>
+        <canvas class="fx" data-fx></canvas>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Luzes</h2>
+      <div class="swatches" id="swatches"></div>
+      <div class="row">
+        <span class="muted">Jogador</span>
+        <div class="leds" id="leds"></div>
+        <label class="chip toggle"><input type="checkbox" id="mic" /> Mudo</label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Vibração</h2>
+      <div class="slider"><span>Esquerda</span><input type="range" id="rumbleL" min="0" max="255" value="0" /></div>
+      <div class="slider"><span>Direita</span><input type="range" id="rumbleR" min="0" max="255" value="0" /></div>
+      <div class="row"><button id="buzz">Testar motores</button><button id="heartbeat" class="ghost">Batida</button><button id="stop" class="ghost">Parar</button></div>
+    </section>
+
+    <section class="card">
+      <h2>Botões</h2>
+      <div class="buttons" id="buttons"></div>
+      <p class="note">Conta cada aperto. Um aperto que conta dois (<span class="warn">2×</span>) indica contato gasto.</p>
+    </section>
+  </aside>
+
+  <div class="bottom">
+    <section class="card mini">
+      <h2>Touchpad</h2>
+      <canvas id="touch" width="240" height="135"></canvas>
+    </section>
+    <section class="card mini">
+      <h2>Movimento</h2>
+      <div id="motion"></div>
+    </section>
+  </div>
+
+  <div class="empty" id="empty">
+    <div class="pulse"></div>
+    <h1>Ligue o controle</h1>
+    <p>Pareie o DualSense pelo Bluetooth do Windows ou ligue no cabo USB. O PadLab encontra ele sozinho.</p>
+    <p class="muted">Se ele está pareado e não aparece, feche o Steam e o DS4Windows, que podem segurar o controle.</p>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
