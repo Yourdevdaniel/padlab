@@ -7,16 +7,22 @@
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
-  <canvas id="stage"></canvas>
+  <canvas id="stage" class="pad-only"></canvas>
 
   <header class="top">
     <div class="brand"><span class="logo"></span>PadLab</div>
-    <div class="status"><span class="dot" id="dot"></span><span id="conn">Procurando controle…</span></div>
-    <div class="chip" id="rate">— Hz</div>
-    <label class="chip toggle"><input type="checkbox" id="follow" checked /> Seguir movimento</label>
+    <nav class="tabs" id="tabs">
+      <button data-page="pad" class="active">Controle</button>
+      <button data-page="keyboard">Teclado</button>
+      <button data-page="mouse">Mouse</button>
+      <button data-page="audio">Áudio</button>
+    </nav>
+    <div class="status pad-only"><span class="dot" id="dot"></span><span id="conn">Procurando controle…</span></div>
+    <div class="chip pad-only" id="rate">— Hz</div>
+    <label class="chip toggle pad-only" data-need="motion"><input type="checkbox" id="follow" checked /> Seguir movimento</label>
   </header>
 
-  <aside class="side left">
+  <aside class="side left pad-only">
     <section class="card">
       <h2>Bateria</h2>
       <div class="battery">
@@ -41,28 +47,29 @@
     </section>
   </aside>
 
-  <aside class="side right">
+  <aside class="side right pad-only">
     <section class="card">
-      <h2>Gatilhos adaptáveis</h2>
+      <h2 id="triggerTitle">Gatilhos adaptáveis</h2>
+      <p class="note" id="triggerNote" hidden></p>
       <div class="trigger" data-side="L">
-        <div class="trigger-head"><b>L2</b><span class="muted" data-hint></span></div>
+        <div class="trigger-head"><b data-name>L2</b><span class="muted" data-hint></span></div>
         <div class="effects" data-effects></div>
         <canvas class="fx" data-fx></canvas>
       </div>
       <div class="trigger" data-side="R">
-        <div class="trigger-head"><b>R2</b><span class="muted" data-hint></span></div>
+        <div class="trigger-head"><b data-name>R2</b><span class="muted" data-hint></span></div>
         <div class="effects" data-effects></div>
         <canvas class="fx" data-fx></canvas>
       </div>
     </section>
 
-    <section class="card">
+    <section class="card" data-need="lightbar">
       <h2>Luzes</h2>
       <div class="swatches" id="swatches"></div>
-      <div class="row">
+      <div class="row" data-need="players">
         <span class="muted">Jogador</span>
         <div class="leds" id="leds"></div>
-        <label class="chip toggle"><input type="checkbox" id="mic" /> Mudo</label>
+        <label class="chip toggle" data-need="micLed"><input type="checkbox" id="mic" /> Mudo</label>
       </div>
     </section>
 
@@ -70,6 +77,8 @@
       <h2>Vibração</h2>
       <div class="slider"><span>Esquerda</span><input type="range" id="rumbleL" min="0" max="255" value="0" /></div>
       <div class="slider"><span>Direita</span><input type="range" id="rumbleR" min="0" max="255" value="0" /></div>
+      <div class="slider" data-need="impulse"><span>Gatilho E</span><input type="range" id="impulseL" min="0" max="255" value="0" /></div>
+      <div class="slider" data-need="impulse"><span>Gatilho D</span><input type="range" id="impulseR" min="0" max="255" value="0" /></div>
       <div class="row"><button id="buzz">Testar motores</button><button id="heartbeat" class="ghost">Batida</button><button id="stop" class="ghost">Parar</button></div>
     </section>
 
@@ -80,23 +89,27 @@
     </section>
   </aside>
 
-  <div class="bottom">
-    <section class="card mini">
+  <div class="bottom pad-only">
+    <section class="card mini" data-need="touch">
       <h2>Touchpad</h2>
       <canvas id="touch" width="240" height="135"></canvas>
     </section>
-    <section class="card mini">
+    <section class="card mini" data-need="motion">
       <h2>Movimento</h2>
       <div id="motion"></div>
     </section>
   </div>
 
-  <div class="empty" id="empty">
+  <div class="empty pad-only" id="empty">
     <div class="pulse"></div>
     <h1>Ligue o controle</h1>
-    <p>Pareie o DualSense pelo Bluetooth do Windows ou ligue no cabo USB. O PadLab encontra ele sozinho.</p>
+    <p>DualSense, DualShock 4 ou controle Xbox: pareie pelo Bluetooth do Windows ou ligue no cabo USB. O PadLab encontra ele sozinho.</p>
     <p class="muted">Se ele está pareado e não aparece, feche o Steam e o DS4Windows, que podem segurar o controle.</p>
   </div>
+
+  <main class="page" id="page-keyboard" hidden></main>
+  <main class="page" id="page-mouse" hidden></main>
+  <main class="page" id="page-audio" hidden></main>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

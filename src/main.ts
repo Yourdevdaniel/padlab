@@ -2,7 +2,10 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { EFFECTS, EffectView, type EffectId } from './effects'
 import { createScene } from './model'
-import { BUTTONS, CHARGE, LABEL, type Frame, type Info } from './pad'
+import { mountAudio } from './audio'
+import { mountKeyboard } from './keyboard'
+import { mountMouse } from './mouse'
+import { BUTTONS, CHARGE, HAS, KIND_NAME, labelFor, type Frame, type Info, type Kind } from './pad'
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T
 
@@ -12,6 +15,7 @@ const out = {
   players: 0b00100,
   mic: false,
   rumble: [0, 0] as [number, number],
+  impulse: [0, 0] as [number, number],
   effect: { L: 'off' as EffectId, R: 'off' as EffectId },
 }
 
@@ -31,6 +35,7 @@ function send() {
         rumble: out.rumble,
         triggerLeft: EFFECTS[out.effect.L].bytes,
         triggerRight: EFFECTS[out.effect.R].bytes,
+        impulse: out.impulse,
       },
     }).catch(() => {})
   }, 16)
@@ -79,6 +84,8 @@ const play = (steps: [number, number, number][]) => {
   timers = steps.map(([l, r, ms]) => { const t = setTimeout(() => setRumble(l, r), at); at += ms; return t })
   timers.push(setTimeout(() => setRumble(0, 0), at))
 }
+const impulseL = $<HTMLInputElement>('#impulseL'), impulseR = $<HTMLInputElement>('#impulseR')
+impulseL.oninput = impulseR.oninput = () => { out.impulse = [+impulseL.value, +impulseR.value]; send() }
 $('#buzz').onclick = () => play([[255, 0, 500], [0, 255, 500]])
 $('#heartbeat').onclick = () => play([[200, 0, 120], [0, 0, 120], [255, 0, 160], [0, 0, 600], [200, 0, 120], [0, 0, 120], [255, 0, 160]])
 $('#stop').onclick = () => play([])
@@ -112,7 +119,7 @@ const counts = BUTTONS.map(() => ({ n: 0, double: 0, last: 0 }))
 const keys = BUTTONS.map((name) => {
   const k = document.createElement('div')
   k.className = 'key'
-  k.innerHTML = `<b>${LABEL[name]}</b><small>0</small>`
+  k.innerHTML = `<b>${labelFor('dualsense', name)}</b><small>0</small>`
   $('#buttons').append(k)
   return k
 })
@@ -163,16 +170,39 @@ const scene = createScene($<HTMLCanvasElement>('#stage'))
 let frame: Frame | null = null
 let info: Info | null = null
 
+let kind: Kind = 'dualsense'
+
+/** Shows only what this controller has, with its own button names. */
+function applyKind(k: Kind) {
+  kind = k
+  const has = HAS[k] as unknown as Record<string, boolean>
+  document.querySelectorAll<HTMLElement>('[data-need]').forEach((el) => (el.hidden = !el.dataset.need!.split(' ').every((n) => has[n])))
+  BUTTONS.forEach((name, i) => {
+    keys[i].hidden = !HAS[k].buttons.includes(name)
+    keys[i].querySelector('b')!.textContent = labelFor(k, name)
+  })
+  document.querySelectorAll('[data-name]').forEach((el, i) => (el.textContent = labelFor(k, i ? 'R2' : 'L2')))
+  $('#triggerTitle').textContent = k === 'xbox' ? 'Gatilhos com vibração' : k === 'dualsense' ? 'Gatilhos adaptáveis' : 'Gatilhos'
+  const note = $('#triggerNote')
+  note.hidden = k === 'dualsense'
+  note.textContent = k === 'xbox'
+    ? 'Os motores dentro dos gatilhos batem junto com a animação: cada tiro é um pulso.'
+    : 'O DualShock 4 não tem gatilhos adaptáveis nem motores nos gatilhos: aqui fica só a animação.'
+  scene.setKind(k)
+}
+
 function showInfo(i: Info | null) {
   const was = info
   info = i
   document.body.classList.toggle('connected', !!i)
   $('#dot').classList.toggle('on', !!i)
-  $('#conn').textContent = i ? `${i.edge ? 'DualSense Edge' : 'DualSense'} · ${i.bluetooth ? 'Bluetooth' : 'USB'}` : 'Procurando controle…'
+  const model = i ? (i.edge ? 'DualSense Edge' : KIND_NAME[i.kind]) : ''
+  $('#conn').textContent = i ? `${model} · ${i.bluetooth ? 'Bluetooth' : 'USB'}` : 'Procurando controle…'
   if (!i) { frame = null; return }
+  applyKind(i.kind)
   const rows: [string, string | null][] = [
-    ['Modelo', i.edge ? 'DualSense Edge' : 'DualSense'],
-    ['Conexão', i.bluetooth ? 'Bluetooth' : 'Cabo USB'],
+    ['Modelo', model],
+    ['Conexão', i.kind === 'xbox' ? (i.bluetooth ? 'Sem fio' : 'Cabo USB') : i.bluetooth ? 'Bluetooth' : 'Cabo USB'],
     ['MAC', i.mac],
     ['Firmware de', i.built],
     ['Firmware', i.firmware],
@@ -183,14 +213,25 @@ function showInfo(i: Info | null) {
   if (!was) send()
 }
 
-listen<Info | null>('pad-info', (e) => { if (!!e.payload !== !!info) showInfo(e.payload) })
-listen<Frame>('pad', (e) => { frame = e.payload })
+// Outside the app (plain browser preview) there's no Tauri: the controller page just stays empty.
+listen<Info | null>('pad-info', (e) => { if (!!e.payload !== !!info) showInfo(e.payload) }).catch(() => {})
+listen<Frame>('pad', (e) => { frame = e.payload }).catch(() => {})
 invoke<Info | null>('hello').then(showInfo).catch(() => {})
+
+const pulse = { L: 0, R: 0 }
+let sentImpulse = '0,0'
+function impulse(now: number) {
+  const manual = [+impulseL.value, +impulseR.value]
+  const level = (side: 'L' | 'R', i: number) => (now < pulse[side] ? 255 : manual[i])
+  out.impulse = [level('L', 0), level('R', 1)]
+  if (String(out.impulse) !== sentImpulse) { sentImpulse = String(out.impulse); send() }
+}
 
 const follow = $<HTMLInputElement>('#follow')
 let lastUi = 0
 function tick(now: number) {
   requestAnimationFrame(tick)
+
   const f = frame
   const accent = out.color
 
@@ -199,8 +240,11 @@ function tick(now: number) {
     const r = fx[side].draw(out.effect[side], f ? (side === 'L' ? f.l2 : f.r2) : 0, accent, now)
     kick = Math.max(kick, r.kick)
     shake += r.shake
+    // Xbox: each shot is a short pulse in that trigger's own motor.
+    if (r.kick) pulse[side] = now + (out.effect[side] === 'gun' ? 45 : 90)
   }
   if (kick) scene.kick(kick)
+  if (kind === 'xbox' && f) impulse(now)
   scene.update(f, { color: accent, players: out.players, mic: out.mic, shake, follow: follow.checked })
   if (!f) return
 
@@ -256,3 +300,24 @@ function tick(now: number) {
   $('#motion').innerHTML = ['X', 'Y', 'Z'].map((a, i) => axis('Giro ' + a, f.gyro[i], 8000)).join('') + ['X', 'Y', 'Z'].map((a, i) => axis('Acel ' + a, f.accel[i], 10000)).join('')
 }
 requestAnimationFrame(tick)
+
+// ---------- pages ----------
+let page = 'pad'
+const pages: Record<string, (root: HTMLElement, active: () => boolean) => void> = { keyboard: mountKeyboard, mouse: mountMouse, audio: mountAudio }
+const mounted = new Set<string>()
+document.body.dataset.page = page
+document.querySelectorAll<HTMLButtonElement>('#tabs button').forEach((b) =>
+  b.addEventListener('click', () => {
+    page = b.dataset.page!
+    document.body.dataset.page = page
+    document.querySelectorAll('#tabs button').forEach((x) => x.classList.toggle('active', x === b))
+    document.querySelectorAll<HTMLElement>('.page').forEach((el) => (el.hidden = el.id !== `page-${page}`))
+    if (pages[page] && !mounted.has(page)) {
+      mounted.add(page)
+      const name = page
+      pages[page]($(`#page-${page}`), () => document.body.dataset.page === name)
+    }
+    b.blur()
+  }),
+)
+applyKind('dualsense')
