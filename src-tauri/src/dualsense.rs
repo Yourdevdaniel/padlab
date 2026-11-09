@@ -1,41 +1,15 @@
 //! The DualSense's HID reports: reading the input report, building the output report.
 //! Offsets follow the Linux hid-playstation driver. Pure functions, tested at the bottom.
 
-use serde::{Deserialize, Serialize};
+use crate::device::{Info, Output, Pad, Touch};
 
 pub const VENDOR: u16 = 0x054c;
 /// DualSense and DualSense Edge.
 pub const PRODUCTS: [u16; 2] = [0x0ce6, 0x0df2];
 pub const EDGE: u16 = 0x0df2;
 
-#[derive(Serialize, Clone, Copy, Default, Debug, PartialEq)]
-pub struct Touch {
-    pub down: bool,
-    pub x: u16,
-    pub y: u16,
-}
-
-/// One input report, already decoded. `buttons` is a bit mask in the order of BUTTONS in src/pad.ts.
-#[derive(Serialize, Clone, Default, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Pad {
-    pub sticks: [u8; 4],
-    pub l2: u8,
-    pub r2: u8,
-    pub buttons: u32,
-    pub gyro: [i16; 3],
-    pub accel: [i16; 3],
-    pub touch: [Touch; 2],
-    /// Percent, in steps of 10. None on the short Bluetooth report.
-    pub battery: Option<u8>,
-    /// 0 on battery, 1 charging, 2 full, 10+ errors.
-    pub charge: Option<u8>,
-    pub headphones: bool,
-    pub mic: bool,
-    pub full: bool,
-}
-
-fn buttons(b0: u8, b1: u8, b2: u8) -> u32 {
+/// Shared with the DualShock 4, whose first three button bytes are laid out the same way.
+pub(crate) fn buttons(b0: u8, b1: u8, b2: u8) -> u32 {
     let hat = b0 & 0x0f;
     let on = [
         b0 & 0x20 != 0,            // Cross
@@ -106,27 +80,6 @@ fn full(d: &[u8]) -> Option<Pad> {
     })
 }
 
-/// What the page asks the controller to show and do.
-#[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Output {
-    pub color: [u8; 3],
-    /// Five bits, one per player LED.
-    pub players: u8,
-    pub mic_led: bool,
-    /// Left (heavy) and right (light) motor.
-    pub rumble: [u8; 2],
-    /// Raw trigger effect: mode byte and its parameters, up to 11 bytes.
-    pub trigger_left: Vec<u8>,
-    pub trigger_right: Vec<u8>,
-}
-
-impl Default for Output {
-    fn default() -> Self {
-        Output { color: [0x4c, 0x8d, 0xff], players: 0b00100, mic_led: false, rumble: [0, 0], trigger_left: vec![0x05], trigger_right: vec![0x05] }
-    }
-}
-
 /// The 47-byte block shared by the USB and Bluetooth output reports.
 fn common(o: &Output, setup: bool) -> [u8; 47] {
     let mut c = [0u8; 47];
@@ -178,19 +131,6 @@ pub fn crc32(data: &[u8]) -> u32 {
         }
     }
     !c
-}
-
-#[derive(Serialize, Clone, Default, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Info {
-    pub name: String,
-    pub bluetooth: bool,
-    pub edge: bool,
-    pub mac: Option<String>,
-    pub built: Option<String>,
-    pub hardware: Option<String>,
-    pub firmware: Option<String>,
-    pub update: Option<String>,
 }
 
 /// Feature report 0x09, id first: the controller's address, last byte first.
