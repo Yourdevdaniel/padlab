@@ -176,6 +176,8 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
   const level = new THREE.Quaternion()
   const extra = new THREE.Quaternion()
   const gravity = new THREE.Vector3()
+  const smooth = new THREE.Vector3()
+  const candidate = new THREE.Quaternion()
   const UP = new THREE.Vector3(0, 1, 0)
   /** Typical accelerometer length at rest (1 g), learnt from the readings. */
   let oneG = 0
@@ -214,7 +216,8 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
     const stickL = m.parts.get('L3'), stickR = m.parts.get('R3')
     const trigL = m.parts.get('L2'), trigR = m.parts.get('R2')
     if (f) {
-      const s = f.sticks.map((v) => Math.max(-1, Math.min(1, (v - 128) / 127)))
+      // Small dead zone so a stick at rest doesn't twitch on the model.
+      const s = f.sticks.map((v) => { const x = Math.max(-1, Math.min(1, (v - 128) / 127)); return Math.abs(x) < 0.06 ? 0 : x })
       stickL?.obj.rotation.set(s[1] * 0.35, 0, -s[0] * 0.35)
       stickR?.obj.rotation.set(s[3] * 0.35, 0, -s[2] * 0.35)
     }
@@ -252,11 +255,16 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
       if (len > 0) {
         oneG = oneG ? oneG + (len - oneG) * 0.01 : len
         // A shake or a swing isn't gravity: keep the last tilt until the hand settles.
-        if (Math.abs(len / oneG - 1) < 0.25) want.setFromUnitVectors(gravity.divideScalar(len), UP)
+        if (Math.abs(len / oneG - 1) < 0.25) {
+          // Low-pass the reading, then ignore turns under ~3°: the hand's tremor never reaches the model.
+          smooth.lerp(gravity.divideScalar(len), smooth.lengthSq() ? 0.1 : 1)
+          candidate.setFromUnitVectors(smooth.clone().normalize(), UP)
+          if (want.angleTo(candidate) > 0.05) want.copy(candidate)
+        }
         target = want
       }
     }
-    tilt.slerp(target, 0.12)
+    tilt.slerp(target, 0.06)
 
     recoil *= 0.82
     const shake = opts.shake + recoil

@@ -127,6 +127,8 @@ select option { background: #151922; }
 /* ---------- keyboard ---------- */
 .kb-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; margin: 4px 4px 18px; flex-wrap: wrap; }
 .kb-head p { margin: 0; }
+.kb-3d { display: block; width: 100%; height: clamp(240px, 36vh, 380px); margin-bottom: 12px; cursor: grab; }
+.kb-3d:active { cursor: grabbing; }
 .kb-stats { grid-template-columns: repeat(4, auto auto); gap: 4px 14px; }
 .kb-stats dd { font-weight: 700; text-align: left; }
 .kb { --u: clamp(26px, 3.1vw, 46px); display: flex; gap: calc(var(--u) * 0.45); justify-content: center; padding: 18px; background: var(--glass); border: 1px solid var(--line); border-radius: 22px; backdrop-filter: blur(18px); }
@@ -148,7 +150,8 @@ select option { background: #151922; }
 .ms-pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .ms-hint { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); pointer-events: none; margin: 0; }
 .ms-side { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
-.ms-svg { width: 110px; display: block; margin: 0 auto 12px; }
+.ms-3d { display: block; width: 100%; height: 240px; margin-bottom: 8px; cursor: grab; }
+.ms-3d:active { cursor: grabbing; }
 .ms-part { fill: rgba(255, 255, 255, 0.06); stroke: rgba(255, 255, 255, 0.2); transition: fill 0.08s; }
 .ms-part.tested { stroke: var(--ok); }
 .ms-part.on { fill: var(--accent); }

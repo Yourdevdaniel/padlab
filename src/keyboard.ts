@@ -3,6 +3,8 @@
  * Counts how many keys register at once (rollover) and flags chatter: a key that bounces back
  * down a few milliseconds after it was released.
  */
+import { mountKeyboard3d } from './keyboard3d'
+
 type K = [code: string, label: string, width?: number]
 const GAP = (w: number): K => ['', '', w]
 const letters = (s: string): K[] => [...s].map((c) => [`Key${c}`, c])
@@ -44,6 +46,7 @@ export function mountKeyboard(root: HTMLElement, isActive: () => boolean) {
         <dt>Repique</dt><dd id="kbChatter">0</dd>
       </dl>
     </div>
+    <canvas class="kb-3d" id="kb3d"></canvas>
     <div class="kb">
       <div class="kb-block" data-block="main"></div>
       <div class="kb-block" data-block="nav"></div>
@@ -55,6 +58,7 @@ export function mountKeyboard(root: HTMLElement, isActive: () => boolean) {
       <p class="note">Para testar rollover (ghosting), segure várias teclas juntas: o "Máximo juntas" mostra quantas o teclado entrega. Repique é uma tecla que volta a apertar sozinha logo depois de solta, sinal de switch gasto. A tecla Fn e a tecla Win (que abre o menu Iniciar) não chegam ao app.</p>
     </div>`
 
+  const k3d = mountKeyboard3d(root.querySelector<HTMLCanvasElement>('#kb3d')!)
   const keys = new Map<string, HTMLElement[]>()
   const draw = (block: string, rows: K[][]) => {
     const el = root.querySelector(`[data-block=${block}]`)!
@@ -99,6 +103,8 @@ export function mountKeyboard(root: HTMLElement, isActive: () => boolean) {
     down.add(e.code)
     tested.add(e.code)
     max = Math.max(max, down.size)
+    k3d.press(e.code, true)
+    k3d.locks(e)
     for (const k of keys.get(e.code) ?? []) {
       k.classList.add('on', 'tested')
       if (bounced) k.classList.add('bad')
@@ -111,17 +117,21 @@ export function mountKeyboard(root: HTMLElement, isActive: () => boolean) {
     e.preventDefault()
     down.delete(e.code)
     released.set(e.code, performance.now())
+    k3d.press(e.code, false)
+    k3d.locks(e)
     for (const k of keys.get(e.code) ?? []) k.classList.remove('on')
     stats()
   })
   // Keys held while the window loses focus never send keyup.
   addEventListener('blur', () => {
     down.clear()
+    k3d.releaseAll()
     root.querySelectorAll('.kb-key.on').forEach((k) => k.classList.remove('on'))
     stats()
   })
   $('kbReset').addEventListener('click', () => {
     tested.clear()
+    k3d.reset()
     max = chatter = 0
     root.querySelectorAll('.kb-key').forEach((k) => k.classList.remove('tested', 'bad'))
     stats()

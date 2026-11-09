@@ -2,6 +2,8 @@
  * Mouse test: five buttons, the wheel in both directions, double clicks the switch made on its own
  * (chatter), and the polling rate measured from raw pointer updates while the mouse moves.
  */
+import { mountMouse3d } from './mouse3d'
+
 const NAMES = ['Esquerdo', 'Meio', 'Direito', 'Voltar', 'Avançar']
 
 export function mountMouse(root: HTMLElement, isActive: () => boolean) {
@@ -14,14 +16,7 @@ export function mountMouse(root: HTMLElement, isActive: () => boolean) {
       <aside class="ms-side">
         <section class="card">
           <h2>Botões</h2>
-          <svg viewBox="0 0 120 190" class="ms-svg">
-            <path d="M60 6 C24 6 10 40 10 80 V128 C10 162 32 184 60 184 C88 184 110 162 110 128 V80 C110 40 96 6 60 6Z" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.18)"/>
-            <path data-b="0" d="M58 8 C26 10 12 40 12 78 H58Z" class="ms-part"/>
-            <path data-b="2" d="M62 8 C94 10 108 40 108 78 H62Z" class="ms-part"/>
-            <rect data-b="1" x="52" y="22" width="16" height="36" rx="8" class="ms-part ms-wheel"/>
-            <rect data-b="4" x="4" y="92" width="10" height="22" rx="4" class="ms-part"/>
-            <rect data-b="3" x="4" y="118" width="10" height="22" rx="4" class="ms-part"/>
-          </svg>
+          <canvas class="ms-3d" id="ms3d"></canvas>
           <dl id="msButtons"></dl>
         </section>
         <section class="card">
@@ -39,6 +34,7 @@ export function mountMouse(root: HTMLElement, isActive: () => boolean) {
     </div>`
 
   const $ = <T extends Element = HTMLElement>(id: string) => root.querySelector('#' + id) as T
+  const m3d = mountMouse3d($<HTMLCanvasElement>('ms3d'))
   const pad = $<HTMLElement>('msPad')
   const canvas = $<HTMLCanvasElement>('msTrail')
   const g = canvas.getContext('2d')!
@@ -51,7 +47,7 @@ export function mountMouse(root: HTMLElement, isActive: () => boolean) {
     $('msButtons').innerHTML = NAMES.map((n, i) => `<dt>${n}</dt><dd>${counts[i].n}${counts[i].chatter ? ` <span class="warn">${counts[i].chatter} repique</span>` : ''}</dd>`).join('')
     $('msWheel').innerHTML = `<dt>Para cima</dt><dd>${wheel.up}</dd><dt>Para baixo</dt><dd>${wheel.down}</dd><dt>Inclinar esquerda</dt><dd>${wheel.left}</dd><dt>Inclinar direita</dt><dd>${wheel.right}</dd>`
   }
-  const light = (b: number, on: boolean) => root.querySelector(`[data-b="${b}"]`)?.classList.toggle('on', on)
+  const light = (b: number, on: boolean) => m3d.press(b, on)
 
   pad.addEventListener('mousedown', (e) => {
     e.preventDefault()
@@ -62,7 +58,6 @@ export function mountMouse(root: HTMLElement, isActive: () => boolean) {
     c.n++
     c.last = now
     light(e.button, true)
-    root.querySelector(`[data-b="${e.button}"]`)?.classList.add('tested')
     render()
   })
   addEventListener('mouseup', (e) => {
@@ -79,10 +74,7 @@ export function mountMouse(root: HTMLElement, isActive: () => boolean) {
     if (e.deltaY > 0) wheel.down++
     if (e.deltaX < 0) wheel.left++
     if (e.deltaX > 0) wheel.right++
-    const w = root.querySelector('.ms-wheel')!
-    w.classList.remove('spin-up', 'spin-down')
-    void (w as HTMLElement).getBoundingClientRect()
-    w.classList.add(e.deltaY < 0 ? 'spin-up' : 'spin-down')
+    m3d.scroll(e.deltaY)
     render()
   }, { passive: false })
 
@@ -134,7 +126,6 @@ export function mountMouse(root: HTMLElement, isActive: () => boolean) {
     counts.forEach((c) => { c.n = 0; c.chatter = 0 })
     Object.assign(wheel, { up: 0, down: 0, left: 0, right: 0 })
     maxRate = 0
-    root.querySelectorAll('.ms-part').forEach((p) => p.classList.remove('tested'))
     render()
   })
   render()
