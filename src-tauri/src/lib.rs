@@ -45,6 +45,20 @@ fn write(shared: &Shared, setup: bool) {
     }
 }
 
+/// The controller keeps the last effect it got, even after the app is gone: on the way out, the
+/// triggers go free and the motors stop.
+fn release(app: &AppHandle) {
+    let shared = app.state::<Shared>();
+    {
+        let mut o = shared.output.lock().unwrap();
+        o.rumble = [0, 0];
+        o.impulse = [0, 0];
+        o.trigger_left = vec![0x05];
+        o.trigger_right = vec![0x05];
+    }
+    write(&shared, false);
+}
+
 #[tauri::command]
 fn set_output(output: Output, shared: State<Shared>) {
     *shared.output.lock().unwrap() = output;
@@ -230,6 +244,11 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![set_output, hello])
-        .run(tauri::generate_context!())
-        .expect("PadLab não abriu");
+        .build(tauri::generate_context!())
+        .expect("PadLab não abriu")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                release(app);
+            }
+        });
 }

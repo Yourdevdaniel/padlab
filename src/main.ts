@@ -115,7 +115,8 @@ document.querySelectorAll<HTMLElement>('.trigger').forEach((el) => {
     b.onclick = () => pick(id as EffectId)
     list.append(b)
   }
-  pick(side === 'R' ? 'gun' : 'bow')
+  // Starts free: an effect is only sent once the user picks it.
+  pick('off')
 })
 
 // ---------- buttons ----------

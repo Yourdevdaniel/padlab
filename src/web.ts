@@ -242,6 +242,8 @@ function xboxFrame(g: Gamepad): Omit<Frame, 'rate'> {
 /** Starts listening: Xbox pads through the Gamepad API, PlayStation pads already allowed through WebHID. */
 export function startWeb(h: Handlers) {
   reopen(h)
+  // The controller keeps the last effect after the page is gone: free the triggers, stop the motors.
+  addEventListener('pagehide', () => { if (last) webOutput({ ...last, rumble: [0, 0], impulse: [0, 0], triggerLeft: [0x05], triggerRight: [0x05] }) })
   if (hasWebHid()) {
     navigator.hid.addEventListener('connect', () => reopen(h))
     navigator.hid.addEventListener('disconnect', (e) => {
