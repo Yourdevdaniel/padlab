@@ -121,7 +121,7 @@ fn sony(d: &DeviceInfo) -> Option<Kind> {
 fn run_hid(app: &AppHandle, api: &HidApi, found: &DeviceInfo, kind: Kind) {
     let Ok(dev) = found.open_device(api) else { return };
     let shared = app.state::<Shared>();
-    let bluetooth = found.bus_type() == BusType::Bluetooth;
+    let bluetooth = matches!(found.bus_type(), BusType::Bluetooth);
     let name = found.product_string().unwrap_or("Wireless Controller");
     let mut info = Info::new(kind, name, bluetooth);
     // Reading the calibration report switches Bluetooth to the full report (battery, motion, touch).

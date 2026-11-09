@@ -20,7 +20,7 @@ hidapi = "2"
 
 # Xbox controllers: Windows.Gaming.Input reads them and drives the motors inside the triggers.
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", features = ["Gaming_Input", "System_Power", "Foundation", "Foundation_Collections", "Win32_System_WinRT"] }
+windows = { version = "0.62", features = ["Gaming_Input", "Devices_Power", "System_Power", "Foundation", "Foundation_Collections", "Win32_System_WinRT"] }
 
 [profile.release]
 codegen-units = 1
