@@ -2,6 +2,7 @@
  * Mouse test: five buttons, the wheel in both directions, double clicks the switch made on its own
  * (chatter), and the polling rate measured from raw pointer updates while the mouse moves.
  */
+import { invoke } from '@tauri-apps/api/core'
 import { mountMouse3d } from './mouse3d'
 
 const NAMES = ['Esquerdo', 'Meio', 'Direito', 'Voltar', 'Avançar']
@@ -27,6 +28,11 @@ export function mountMouse(root: HTMLElement, isActive: () => boolean) {
           <h2>Taxa de atualização</h2>
           <div class="big" id="msRate">— Hz</div>
           <div class="muted" id="msRateMax">mexa o mouse rápido em círculos</div>
+        </section>
+        <section class="card">
+          <h2>Bateria sem fio</h2>
+          <dl id="msBattery"></dl>
+          <p class="note" id="msBatteryNote"></p>
         </section>
         <button class="ghost" id="msReset">Zerar teste</button>
         <p class="note">Duplo clique sozinho (<span class="warn">repique</span>) é um clique registrado duas vezes em menos de 60 ms: sinal de switch gasto.</p>
@@ -122,6 +128,26 @@ export function mountMouse(root: HTMLElement, isActive: () => boolean) {
   }
   frame()
 
+  // Windows only knows the battery of Bluetooth devices; a 2.4 GHz dongle reports it in a protocol of
+  // its own brand. In the browser preview there is no way to ask.
+  type Battery = { name: string; percent: number }
+  const showBatteries = (list: Battery[] | null) => {
+    const color = (p: number) => (p <= 15 ? 'bad' : p <= 35 ? 'warn' : 'ok')
+    $('msBattery').innerHTML = (list ?? []).map((b) => `<dt>${escape(b.name)}</dt><dd class="${color(b.percent)}">${b.percent}%</dd>`).join('')
+    $('msBatteryNote').textContent = list === null
+      ? 'Só aparece no app instalado.'
+      : list.length
+        ? 'Aparelhos Bluetooth conectados. Pelo receptor 2.4 GHz o Windows não recebe a bateria.'
+        : 'Nenhum aparelho Bluetooth com bateria conectado. Pelo receptor 2.4 GHz o Windows não recebe a bateria; num mouse de dois modos, ligue o Bluetooth para ver.'
+  }
+  const inApp = '__TAURI_INTERNALS__' in window
+  const pollBatteries = () => {
+    if (!inApp) return showBatteries(null)
+    if (isActive()) invoke<Battery[]>('batteries').then(showBatteries).catch(() => showBatteries([]))
+  }
+  pollBatteries()
+  setInterval(pollBatteries, 5000)
+
   $('msReset').addEventListener('click', () => {
     counts.forEach((c) => { c.n = 0; c.chatter = 0 })
     Object.assign(wheel, { up: 0, down: 0, left: 0, right: 0 })
@@ -130,3 +156,5 @@ export function mountMouse(root: HTMLElement, isActive: () => boolean) {
   })
   render()
 }
+
+const escape = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)

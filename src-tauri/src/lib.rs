@@ -1,3 +1,4 @@
+mod battery;
 mod device;
 mod ds4;
 mod dualsense;
@@ -69,6 +70,12 @@ fn set_output(output: Output, shared: State<Shared>) {
 #[tauri::command]
 fn hello(shared: State<Shared>) -> Option<Info> {
     shared.info.lock().unwrap().clone()
+}
+
+/// Bluetooth devices that report a battery (the mouse tab asks every few seconds).
+#[tauri::command(async)]
+fn batteries() -> Vec<battery::Battery> {
+    battery::list()
 }
 
 fn announce(app: &AppHandle, info: Option<Info>) {
@@ -243,7 +250,7 @@ pub fn run() {
             std::thread::spawn(move || reader(handle));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![set_output, hello])
+        .invoke_handler(tauri::generate_handler![set_output, hello, batteries])
         .build(tauri::generate_context!())
         .expect("PadLab não abriu")
         .run(|app, event| {

@@ -20,7 +20,7 @@ App de desktop (Tauri 2 + Rust + three.js) para ver o estado e testar controles,
 
 Drift e circularidade dos analógicos, contagem de apertos (com detecção de repique) e um controle 3D que acompanha tudo. Cada efeito de gatilho tem uma animação (metralhadora, pistola, arco, molas); no Xbox ela pulsa os motores dos gatilhos.
 
-**Teclado** (layout ABNT2): teclas testadas, rollover e repique. **Mouse**: cinco botões, roda nos dois eixos, repique e taxa de atualização. **Áudio**: tom no lado esquerdo e direito, varredura de 20 Hz a 20 kHz, nível e espectro do microfone, gravar e ouvir.
+**Teclado** (layout ABNT2): teclas testadas, rollover e repique. **Mouse**: cinco botões, roda nos dois eixos, repique, taxa de atualização e bateria dos aparelhos Bluetooth conectados (a mesma que o Windows mostra em Configurações; pelo receptor 2.4 GHz cada marca usa um protocolo próprio e o Windows não recebe a bateria). **Áudio**: tom no lado esquerdo e direito, varredura de 20 Hz a 20 kHz, nível e espectro do microfone, gravar e ouvir.
 
 ## Como funciona
 
