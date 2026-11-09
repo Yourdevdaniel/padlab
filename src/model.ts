@@ -170,7 +170,15 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
   new ResizeObserver(resize).observe(canvas)
   resize()
 
-  let tilt = new THREE.Euler()
+  // Tilt from gravity, as a quaternion: no Euler angles, so no jump past 90°.
+  const tilt = new THREE.Quaternion()
+  const want = new THREE.Quaternion()
+  const level = new THREE.Quaternion()
+  const extra = new THREE.Quaternion()
+  const gravity = new THREE.Vector3()
+  const UP = new THREE.Vector3(0, 1, 0)
+  /** Typical accelerometer length at rest (1 g), learnt from the readings. */
+  let oneG = 0
   let recoil = 0
   const clock = new THREE.Timer()
   let last: Frame | null = null
@@ -235,17 +243,25 @@ export function createScene(canvas: HTMLCanvasElement): Scene {
     const m = models.get(kind)
     if (m) animate(m, f, t)
 
+    let target = level
     if (f && opts.follow && f.full) {
-      // Tilt from gravity: the accelerometer, smoothed. Spin (yaw) is left to the mouse.
-      const [ax, ay, az] = f.accel
-      const want = new THREE.Euler(Math.atan2(az, ay) * 0.9, 0, -Math.atan2(ax, ay) * 0.9)
-      tilt = new THREE.Euler(tilt.x + (want.x - tilt.x) * 0.15, 0, tilt.z + (want.z - tilt.z) * 0.15)
+      // The accelerometer at rest points up, in the controller's own axes (x right, y up, z toward
+      // the player). The turn that takes it to world up is the controller's tilt. Yaw is left to the mouse.
+      gravity.fromArray(f.accel)
+      const len = gravity.length()
+      if (len > 0) {
+        oneG = oneG ? oneG + (len - oneG) * 0.01 : len
+        // A shake or a swing isn't gravity: keep the last tilt until the hand settles.
+        if (Math.abs(len / oneG - 1) < 0.25) want.setFromUnitVectors(gravity.divideScalar(len), UP)
+        target = want
+      }
     }
-    if (!opts.follow || !f) tilt = new THREE.Euler(tilt.x * 0.9, 0, tilt.z * 0.9)
+    tilt.slerp(target, 0.12)
 
     recoil *= 0.82
     const shake = opts.shake + recoil
-    pad.rotation.set(tilt.x - recoil * 0.25, Math.sin(t * 0.4) * 0.04, tilt.z)
+    extra.setFromEuler(new THREE.Euler(-recoil * 0.25, Math.sin(t * 0.4) * 0.04, 0))
+    pad.quaternion.copy(tilt).multiply(extra)
     pad.position.set((Math.random() - 0.5) * shake * 0.08, Math.sin(t * 1.1) * 0.05 + (Math.random() - 0.5) * shake * 0.05, recoil * 0.2)
     controls.update()
     renderer.render(scene, camera)
